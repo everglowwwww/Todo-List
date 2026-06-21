@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>瞬 Tempo — Prototype v3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+<style>
+/* ===== CSS Spring ===== */
+:root {
+  --spring: cubic-bezier(0.25, 1, 0.5, 1);
+  --spring-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --bg: #ffffff;
+  --bg-subtle: #f5f5f7;
+  --ink: #1d1d1f;
+  --ink-secondary: #86868b;
+  --ink-tertiary: #aeaeb2;
+  --ink-quaternary: #c7c7cc;
+  --accent: #007aff;
+  --green: #34c759;
+  --orange: #ff9500;
+  --red: #ff3b30;
+  --purple: #5856d6;
+  --border: rgba(0,0,0,0.05);
+  --border-active: rgba(0,0,0,0.08);
+  --shadow: 0 0 0 0.5px rgba(0,0,0,0.04);
+  --radius-sm: 5px;
+  --radius-md: 7px;
+  --radius-lg: 10px;
+  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+  --sidebar-w: 46px;
+  --sidebar-expanded: 152px;
+  --panel-w: 210px;
+  --titlebar-h: 34px;
+}
+.dark {
+  --bg: #1c1c1e;
+  --bg-subtle: #2c2c2e;
+  --ink: #f5f5f7;
+  --ink-secondary: #98989d;
+  --ink-tertiary: #636366;
+  --ink-quaternary: #48484a;
+  --accent: #0a84ff;
+  --border: rgba(255,255,255,0.06);
+  --border-active: rgba(255,255,255,0.1);
+  --shadow: 0 0 0 0.5px rgba(255,255,255,0.04);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--ink);
+  overflow: hidden;
+  height: 100vh;
+  font-size: 13px;
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+}
+::selection { background: var(--accent); color: white; }
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 12px;
+}
+
+/* ===== Titlebar ===== */
+.titlebar {
+  height: var(--titlebar-h);
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+  -webkit-app-region: drag;
+  user-select: none;
+  flex-shrink: 0;
+  gap: 10px;
+}
+.traffic-lights {
+  display: flex;
+  gap: 7px;
+  -webkit-app-region: no-drag;
+  padding: 0 4px;
+}
+.traffic-light {
+  width: 11px; height: 11px;
+  border-radius: 50%;
+  transition: filter 0.1s;
+  cursor: pointer;
+}
+.traffic-light:hover { filter: brightness(0.8); }
+.tl-close { background: #ff5f57; }
+.tl-minimize { background: #febc2e; }
+.tl-zoom { background: #28c840; }
+.titlebar-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-secondary);
+  letter-spacing: 0.1px;
+}
+.titlebar-spacer { flex: 1; }
+
+/* ===== Main Layout ===== */
+.main-layout {
+  display: flex;
+  flex: 1;
+  gap: 10px;
+  padding-bottom: 10px;
+  min-height: 0;
+}
+
+/* ===== Sidebar ===== */
+.sidebar {
+  width: var(--sidebar-w);
+  flex-shrink: 0;
+  border-radius: var(--radius-lg);
+  padding: 8px 5px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  background: var(--bg);
+  box-shadow: var(--shadow);
+  transition: width 0.35s var(--spring);
+  overflow: hidden;
+}
+.sidebar.expanded {
+  width: var(--sidebar-expanded);
+}
+.nav-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 6px 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  position: relative;
+  justify-content: center;
+  transition: all 0.2s var(--spring);
+}
+.sidebar.expanded .nav-item {
+  padding: 6px 8px;
+  justify-content: flex-start;
+  gap: 8px;
+}
+.nav-item svg {
+  width: 18px; height: 18px;
+  flex-shrink: 0;
+  color: var(--ink-tertiary);
+  transition: color 0.2s var(--spring);
+  position: relative;
+  z-index: 1;
+}
+.nav-item:hover svg { color: var(--ink); }
+.nav-item.active svg { color: var(--accent); }
+
+/* Minimalist text menu hover — background pill */
+.nav-item .hover-pill {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-sm);
+  background: var(--border);
+  transform: scaleY(0.7);
+  opacity: 0;
+  transition: transform 0.3s var(--spring), opacity 0.25s var(--spring);
+  pointer-events: none;
+}
+.nav-item:hover .hover-pill {
+  transform: scaleY(1);
+  opacity: 1;
+}
+.nav-item.active .hover-pill {
+  transform: scaleY(1);
+  opacity: 0;
+}
+.nav-item.active {
+  background: var(--border);
+}
+
+/* Sidebar text label — hidden by default, spring in on expand */
+.nav-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-secondary);
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateX(-6px);
+  transition: opacity 0.25s var(--spring), transform 0.25s var(--spring), color 0.15s;
+  position: relative;
+  z-index: 1;
+}
+.sidebar.expanded .nav-label {
+  opacity: 1;
+  transform: translateX(0);
+}
+.nav-item:hover .nav-label { color: var(--ink); }
+.nav-item.active .nav-label { color: var(--ink); }
+
+/* Sidebar toggle button */
+.sidebar-toggle {
+  width: 28px; height: 28px;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-tertiary);
+  margin-top: auto;
+  transition: all 0.2s var(--spring);
+  flex-shrink: 0;
+}
+.sidebar-toggle:hover {
+  background: var(--border);
+  color: var(--ink);
+}
+.sidebar-toggle svg {
+  width: 14px; height: 14px;
+  transition: transform 0.35s var(--spring);
+}
+.sidebar.expanded .sidebar-toggle svg {
+  transform: rotate(180deg);
+}
+
+.sidebar-divider {
+  width: 60%;
+  height: 1px;
+  background: var(--border);
+  margin: 4px 0;
+  flex-shrink: 0;
+}
+
+/* ===== Content ===== */
+.content {
+  flex: 1;
+  min-width: 0;
+  border-radius: var(--radius-lg);
+  padding: 18px 22px;
+  overflow-y: auto;
+  background: var(--bg);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.content::-webkit-scrollbar { width: 3px; }
+.content::-webkit-scrollbar-thumb { background: var(--ink-quaternary); border-radius: 2px; }
+
+.view-section { display: none; flex-direction: column; gap: 16px; }
+.view-section.active { display: flex; }
+
+/* ===== View Header ===== */
+.view-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.view-header h1 {
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: -0.3px;
+}
+.view-header .subtitle {
+  font-size: 11.5px;
+  color: var(--ink-secondary);
+  margin-top: 1px;
+}
+.view-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.btn-icon {
+  width: 26px; height: 26px;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-secondary);
+  transition: all 0.15s var(--spring);
+}
+.btn-icon:hover { background: var(--border); color: var(--ink); }
+.btn-icon svg { width: 13px; height: 13px; }
+.btn-segment {
+  display: flex;
+  background: var(--bg-subtle);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+}
+.btn-segment button {
+  padding: 3px 9px;
+  border: none;
+  background: transparent;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-secondary);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.15s var(--spring);
+  font-family: var(--font);
+}
+.btn-segment button.active {
+  background: var(--bg);
+  color: var(--ink);
+  box-shadow: 0 0 0 0.5px var(--border);
+}
+.btn-primary {
+  padding: 4px 12px;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--font);
+  transition: all 0.12s var(--spring);
+}
+.btn-primary:hover { opacity: 0.85; }
+.btn-primary:active { opacity: 0.7; }
+
+/* ===== Calendar ===== */
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1px;
+}
+.calendar-day-header {
+  text-align: center;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--ink-tertiary);
+  padding: 4px 0 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.day-cell {
+  aspect-ratio: 1;
+  border-radius: var(--radius-sm);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.12s var(--spring);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink);
+  gap: 1px;
+  position: relative;
+}
+.day-cell:hover { background: var(--border); }
+.day-cell.other-month { color: var(--ink-quaternary); }
+.day-cell.today {
+  background: var(--accent);
+  color: white;
+}
+.day-cell .task-dots { display: flex; gap: 2px; }
+.day-cell .task-dot { width: 3px; height: 3px; border-radius: 50%; }
+
+/* ===== Tasks ===== */
+.tasks-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+.tasks-header h3 { font-size: 12.5px; font-weight: 600; }
+.tasks-header .count { font-size: 11px; color: var(--ink-secondary); }
+.task-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 5px 6px;
+  border-radius: var(--radius-sm);
+  transition: all 0.12s var(--spring);
+  cursor: pointer;
+}
+.task-item:hover { background: var(--border); }
+.task-checkbox {
+  width: 15px; height: 15px;
+  min-width: 15px;
+  border-radius: 50%;
+  border: 1.5px solid var(--ink-quaternary);
+  cursor: pointer;
+  transition: all 0.2s var(--spring-bounce);
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.task-checkbox:hover { border-color: var(--accent); }
+.task-checkbox.done { background: var(--green); border-color: var(--green); }
+.task-checkbox.done::after {
+  content: '';
+  width: 5px; height: 2.5px;
+  border-left: 1.5px solid white;
+  border-bottom: 1.5px solid white;
+  transform: rotate(-45deg);
+  margin-top: -0.5px;
+}
+.task-body { flex: 1; min-width: 0; }
+.task-title { font-size: 13px; font-weight: 500; line-height: 1.35; }
+.task-title.done { text-decoration: line-through; color: var(--ink-tertiary); }
+.task-meta {
+  display: flex; gap: 5px; margin-top: 1px;
+  font-size: 10.5px; color: var(--ink-secondary); align-items: center;
+}
+.task-tag {
+  padding: 0 5px; border-radius: 3px;
+  font-size: 9.5px; font-weight: 500; line-height: 15px;
+}
+.tag-urgent { background: rgba(255,59,48,0.1); color: var(--red); }
+.tag-high { background: rgba(255,149,0,0.1); color: var(--orange); }
+.tag-med { background: rgba(0,122,255,0.08); color: var(--accent); }
+.task-subtasks {
+  margin-top: 3px; padding-left: 23px;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.subtask-item {
+  display: flex; align-items: center; gap: 6px;
+  padding: 1px 4px; border-radius: 3px;
+}
+.subtask-item:hover { background: var(--border); }
+.subtask-checkbox {
+  width: 13px; height: 13px;
+  min-width: 13px;
+  border-radius: 50%;
+  border: 1.5px solid var(--ink-quaternary);
+  cursor: pointer;
+  transition: all 0.15s var(--spring-bounce);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.subtask-checkbox:hover { border-color: var(--accent); }
+.subtask-checkbox.done { background: var(--green); border-color: var(--green); }
+.subtask-checkbox.done::after {
+  content: ''; width: 4px; height: 2px;
+  border-left: 1.5px solid white; border-bottom: 1.5px solid white;
+  transform: rotate(-45deg); margin-top: -0.5px;
+}
+.subtask-title { font-size: 13px; font-weight: 400; color: var(--ink-secondary); }
+.subtask-title.done { text-decoration: line-through; color: var(--ink-tertiary); }
+
+.quick-add {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  cursor: text; margin-top: 2px;
+  transition: all 0.15s var(--spring);
+}
+.quick-add:hover { background: var(--border); }
+.quick-add span { font-size: 12px; color: var(--ink-quaternary); }
+.quick-add svg { width: 13px; height: 13px; color: var(--ink-quaternary); }
+
+/* ===== Stats ===== */
+.stats-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+.stat-card {
+  background: var(--bg-subtle);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.stat-label { font-size: 9.5px; font-weight: 600; color: var(--ink-tertiary); text-transform: uppercase; letter-spacing: 0.3px; }
+.stat-value { font-size: 21px; font-weight: 700; letter-spacing: -0.2px; line-height: 1.1; }
+.stat-value .unit { font-size: 12px; font-weight: 500; color: var(--ink-secondary); }
+.stat-change { font-size: 10.5px; font-weight: 500; color: var(--green); }
+
+/* ===== Completion Bars ===== */
+.completion-list { display: flex; flex-direction: column; gap: 2px; }
+.completion-row {
+  display: flex; align-items: center; gap: 6px; padding: 2px 0;
+}
+.completion-row .day-label {
+  width: 28px; font-size: 10.5px; font-weight: 500; color: var(--ink-secondary);
+}
+.completion-row .bar-track {
+  flex: 1; height: 4px; border-radius: 2px; background: var(--border); overflow: hidden;
+}
+.completion-row .bar-fill {
+  height: 100%; border-radius: 2px; background: var(--accent);
+  transition: width 0.6s var(--spring);
+}
+.completion-row .bar-pct {
+  width: 26px; text-align: right;
+  font-size: 10px; font-weight: 600; color: var(--ink-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ===== Heatmap ===== */
+.heatmap-cell { border-radius: 1.5px; aspect-ratio: 1; min-width: 6px; }
+.heatmap-cell.l0 { background: var(--border); }
+.heatmap-cell.l1 { background: rgba(0,122,255,0.12); }
+.heatmap-cell.l2 { background: rgba(0,122,255,0.25); }
+.heatmap-cell.l3 { background: rgba(0,122,255,0.45); }
+.heatmap-cell.l4 { background: var(--accent); }
+
+/* ===== Right Panel ===== */
+.right-panel {
+  width: var(--panel-w);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Collapsible Card */
+.collapsible {
+  background: var(--bg);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  transition: box-shadow 0.2s var(--spring);
+}
+.collapsible-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.12s var(--spring);
+  gap: 6px;
+}
+.collapsible-header:hover { background: var(--border); }
+.collapsible-header .label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ink-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.collapsible-header .chevron {
+  width: 12px; height: 12px;
+  color: var(--ink-quaternary);
+  transition: transform 0.3s var(--spring);
+  flex-shrink: 0;
+}
+.collapsible.open .chevron { transform: rotate(180deg); }
+.collapsible-content {
+  overflow: hidden;
+  max-height: 0;
+  transition: max-height 0.4s var(--spring), padding 0.3s var(--spring);
+  padding: 0 12px;
+}
+.collapsible.open .collapsible-content {
+  max-height: 300px;
+  padding: 0 12px 12px;
+}
+
+/* ===== Focus Mode (redesigned) ===== */
+.focus-timer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: 32px 0 12px;
+  gap: 24px;
+}
+.focus-ring {
+  position: relative;
+  width: 180px; height: 180px;
+}
+.focus-ring svg { width: 100%; height: 100%; }
+.focus-ring .ring-bg { fill: none; stroke: var(--border); stroke-width: 2; }
+.focus-ring .ring-fg {
+  fill: none; stroke: var(--accent); stroke-width: 2;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.5s var(--spring);
+}
+.focus-display {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.focus-display .time {
+  font-size: 40px;
+  font-weight: 350;
+  letter-spacing: -0.5px;
+  font-variant-numeric: tabular-nums;
+}
+.focus-display .label {
+  font-size: 10px;
+  color: var(--ink-tertiary);
+  margin-top: 3px;
+}
+.focus-btn {
+  padding: 7px 32px;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 16px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--font);
+  transition: all 0.2s var(--spring-bounce);
+}
+.focus-btn:hover { opacity: 0.85; transform: scale(1.02); }
+.focus-stats {
+  display: flex;
+  gap: 16px;
+  font-size: 11px;
+  color: var(--ink-secondary);
+}
+.focus-stats strong { color: var(--ink); font-weight: 600; }
+
+/* ===== Theme Toggle ===== */
+.theme-toggle {
+  position: fixed;
+  bottom: 12px;
+  right: 12px;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--bg);
+  border: 0.5px solid var(--border);
+  border-radius: 14px;
+  padding: 2px 8px 2px 2px;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+  transition: all 0.15s var(--spring);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--ink-secondary);
+}
+.theme-toggle:hover { border-color: var(--border-active); }
+.theme-toggle .track {
+  width: 24px; height: 13px;
+  border-radius: 7px;
+  background: var(--ink-quaternary);
+  position: relative;
+}
+.theme-toggle .thumb {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: white;
+  position: absolute;
+  top: 1.5px; left: 1.5px;
+  transition: transform 0.2s var(--spring);
+}
+.theme-toggle.dark .track { background: var(--accent); }
+.theme-toggle.dark .thumb { transform: translateX(11px); }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Titlebar -->
+  <div class="titlebar">
+    <div class="traffic-lights">
+      <div class="traffic-light tl-close"></div>
+      <div class="traffic-light tl-minimize"></div>
+      <div class="traffic-light tl-zoom"></div>
+    </div>
+    <span class="titlebar-title">瞬 Tempo</span>
+    <div class="titlebar-spacer"></div>
+  </div>
+
+  <div class="main-layout">
+    <!-- Sidebar — icon-only mode with expand toggle -->
+    <div class="sidebar" id="sidebar">
+      <div class="nav-item active" data-view="calendar">
+        <div class="hover-pill"></div>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        <span class="nav-label">日历</span>
+      </div>
+      <div class="nav-item" data-view="today">
+        <div class="hover-pill"></div>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <span class="nav-label">今日</span>
+      </div>
+      <div class="nav-item" data-view="stats">
+        <div class="hover-pill"></div>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        <span class="nav-label">统计</span>
+      </div>
+      <div class="sidebar-divider"></div>
+      <div class="nav-item" data-view="focus">
+        <div class="hover-pill"></div>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <span class="nav-label">专注</span>
+      </div>
+      <div class="nav-item" data-view="tags">
+        <div class="hover-pill"></div>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+        <span class="nav-label">标签</span>
+      </div>
+      <div class="sidebar-divider"></div>
+      <div class="nav-item" data-view="settings">
+        <div class="hover-pill"></div>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span class="nav-label">设置</span>
+      </div>
+
+      <button class="sidebar-toggle" id="sidebarToggle" title="展开侧边栏">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
+    </div>
+
+    <!-- Main Content -->
+    <div class="content" id="mainContent">
+      <!-- Calendar View -->
+      <div class="view-section active" id="view-calendar">
+        <div class="view-header">
+          <div><h1>2026年7月</h1><div class="subtitle">12 项任务</div></div>
+          <div class="view-controls">
+            <div class="btn-segment"><button class="active">月</button><button>周</button><button>日</button></div>
+            <button class="btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg></button>
+            <button class="btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg></button>
+            <button class="btn-primary">今天</button>
+          </div>
+        </div>
+        <div>
+          <div class="calendar-grid">
+            <div class="calendar-day-header">日</div><div class="calendar-day-header">一</div><div class="calendar-day-header">二</div><div class="calendar-day-header">三</div><div class="calendar-day-header">四</div><div class="calendar-day-header">五</div><div class="calendar-day-header">六</div>
+            <div class="day-cell other-month"></div><div class="day-cell other-month"></div><div class="day-cell other-month"></div><div class="day-cell other-month"></div><div class="day-cell other-month today">21<div class="task-dots"><div class="task-dot" style="background:#ff3b30"></div><div class="task-dot" style="background:#007aff"></div><div class="task-dot" style="background:#34c759"></div></div></div>
+            <div class="day-cell other-month">22<div class="task-dots"><div class="task-dot" style="background:#ff9500"></div></div></div>
+            <div class="day-cell other-month">23</div><div class="day-cell other-month">24<div class="task-dots"><div class="task-dot" style="background:#5856d6"></div><div class="task-dot" style="background:#ff3b30"></div></div></div>
+            <div class="day-cell other-month">25</div><div class="day-cell other-month">26</div><div class="day-cell other-month">27</div><div class="day-cell other-month">28<div class="task-dots"><div class="task-dot" style="background:#007aff"></div></div></div>
+            <div class="day-cell other-month">29</div><div class="day-cell other-month">30</div><div class="day-cell other-month">31</div>
+            <div class="day-cell">1</div><div class="day-cell">2</div><div class="day-cell">3</div><div class="day-cell">4</div>
+            <div class="day-cell">5</div><div class="day-cell">6</div><div class="day-cell">7</div><div class="day-cell">8</div>
+          </div>
+        </div>
+        <div>
+          <div class="tasks-header"><h3>6月21日 · 星期日</h3><span class="count">3/3 完成</span></div>
+          <div class="task-item"><div class="task-checkbox done"></div><div class="task-body"><div class="task-title done">设计评审会议</div><div class="task-meta"><span>14:00 — 15:00</span><span class="task-tag tag-urgent">紧急</span></div><div class="task-subtasks"><div class="subtask-item"><div class="subtask-checkbox done"></div><span class="subtask-title done">准备演示 PPT</span></div><div class="subtask-item"><div class="subtask-checkbox done"></div><span class="subtask-title done">确认参会人员</span></div></div></div></div>
+          <div class="task-item"><div class="task-checkbox done"></div><div class="task-body"><div class="task-title done">完成需求文档</div><div class="task-meta"><span>10:00 — 12:00</span><span class="task-tag tag-high">高</span></div></div></div>
+          <div class="task-item"><div class="task-checkbox done"></div><div class="task-body"><div class="task-title done">周报提交</div><div class="task-meta"><span>18:00</span><span class="task-tag tag-med">中</span></div></div></div>
+          <div class="quick-add"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span>添加任务...</span></div>
+        </div>
+      </div>
+
+      <!-- Stats View -->
+      <div class="view-section" id="view-stats">
+        <div class="view-header"><div><h1>统计</h1><div class="subtitle">效率趋势</div></div><div class="view-controls"><div class="btn-segment"><button class="active">每日</button><button>每月</button><button>至今</button></div></div></div>
+        <div class="stats-row">
+          <div class="stat-card"><div class="stat-label">今日</div><div class="stat-value">3 <span class="unit">项</span></div><div class="stat-change">100%</div></div>
+          <div class="stat-card"><div class="stat-label">本周</div><div class="stat-value">21 <span class="unit">项</span></div><div class="stat-change">+3</div></div>
+          <div class="stat-card"><div class="stat-label">本月</div><div class="stat-value">78 <span class="unit">项</span></div><div class="stat-change">+12%</div></div>
+        </div>
+        <div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <span style="font-size:11.5px;font-weight:600">本周趋势</span>
+          </div>
+          <div class="completion-list">
+            <div class="completion-row"><span class="day-label">周一</span><div class="bar-track"><div class="bar-fill" style="width:85%"></div></div><span class="bar-pct">85%</span></div>
+            <div class="completion-row"><span class="day-label">周二</span><div class="bar-track"><div class="bar-fill" style="width:92%"></div></div><span class="bar-pct">92%</span></div>
+            <div class="completion-row"><span class="day-label">周三</span><div class="bar-track"><div class="bar-fill" style="width:78%"></div></div><span class="bar-pct">78%</span></div>
+            <div class="completion-row"><span class="day-label">周四</span><div class="bar-track"><div class="bar-fill" style="width:100%"></div></div><span class="bar-pct">100%</span></div>
+            <div class="completion-row"><span class="day-label">周五</span><div class="bar-track"><div class="bar-fill" style="width:60%"></div></div><span class="bar-pct">60%</span></div>
+            <div class="completion-row"><span class="day-label">周六</span><div class="bar-track"><div class="bar-fill" style="width:95%"></div></div><span class="bar-pct">95%</span></div>
+            <div class="completion-row"><span class="day-label">周日</span><div class="bar-track"><div class="bar-fill" style="width:100%"></div></div><span class="bar-pct">100%</span></div>
+          </div>
+        </div>
+        <div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <span style="font-size:11.5px;font-weight:600">年度贡献</span>
+            <span style="font-size:10px;color:var(--ink-secondary)">187 次</span>
+          </div>
+          <div style="display:flex;gap:2px;flex-wrap:wrap" id="heatmap"></div>
+          <div style="display:flex;align-items:center;gap:3px;justify-content:flex-end;margin-top:4px;font-size:9px;color:var(--ink-tertiary)">
+            <span>少</span>
+            <div class="heatmap-cell l0" style="width:7px;height:7px"></div>
+            <div class="heatmap-cell l1" style="width:7px;height:7px"></div>
+            <div class="heatmap-cell l2" style="width:7px;height:7px"></div>
+            <div class="heatmap-cell l3" style="width:7px;height:7px"></div>
+            <div class="heatmap-cell l4" style="width:7px;height:7px"></div>
+            <span>多</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Focus View — clean, minimal -->
+      <div class="view-section" id="view-focus">
+        <div class="view-header"><div><h1>专注</h1><div class="subtitle">25 分钟 · 番茄工作法</div></div></div>
+        <div class="focus-timer">
+          <div class="focus-ring">
+            <svg viewBox="0 0 100 100">
+              <circle class="ring-bg" cx="50" cy="50" r="44"/>
+              <circle class="ring-fg" cx="50" cy="50" r="44"
+                stroke-dasharray="276" stroke-dashoffset="69"
+                transform="rotate(-90 50 50)"/>
+            </svg>
+            <div class="focus-display">
+              <span class="time">18:42</span>
+              <span class="label">剩余时间</span>
+            </div>
+          </div>
+          <button class="focus-btn">开始</button>
+          <div class="focus-stats">
+            <span>今日 <strong>2h 15m</strong></span>
+            <span>已完成 <strong>4</strong></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Panel — collapsible sections -->
+    <div class="right-panel">
+      <!-- Today Overview — always visible -->
+      <div style="background:var(--bg);border-radius:var(--radius-lg);box-shadow:var(--shadow);padding:10px 12px;display:flex;flex-direction:column;gap:4px">
+        <div style="font-size:9.5px;font-weight:600;color:var(--ink-tertiary);text-transform:uppercase;letter-spacing:0.3px">今日概览</div>
+        <div style="display:flex;justify-content:space-between;padding:2px 0"><span style="font-size:12px;color:var(--ink-secondary)">已完成</span><span style="font-size:12px;font-weight:600;color:var(--green)">3</span></div>
+        <div style="display:flex;justify-content:space-between;padding:2px 0"><span style="font-size:12px;color:var(--ink-secondary)">待办</span><span style="font-size:12px;font-weight:600;color:var(--ink-secondary)">0</span></div>
+        <div style="display:flex;justify-content:space-between;padding:2px 0;border-top:0.5px solid var(--border);margin-top:2px;padding-top:6px"><span style="font-size:12px;color:var(--ink-secondary)">完成率</span><span style="font-size:12px;font-weight:600;color:var(--accent)">100%</span></div>
+      </div>
+
+      <!-- Streak — collapsible -->
+      <div class="collapsible open" id="streakCard">
+        <div class="collapsible-header" onclick="toggleCollapsible(this)">
+          <span class="label">连续打卡</span>
+          <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+        <div class="collapsible-content">
+          <div style="display:flex;align-items:baseline;gap:3px;margin-bottom:6px">
+            <span style="font-size:26px;font-weight:700;line-height:1">7</span>
+            <span style="font-size:11px;color:var(--ink-secondary)">天</span>
+          </div>
+          <div style="display:flex;gap:2px;margin-bottom:4px">
+            <div style="flex:1;height:18px;border-radius:2px;background:var(--green);opacity:1"></div>
+            <div style="flex:1;height:18px;border-radius:2px;background:var(--green);opacity:0.8"></div>
+            <div style="flex:1;height:18px;border-radius:2px;background:var(--green);opacity:0.6"></div>
+            <div style="flex:1;height:18px;border-radius:2px;background:var(--green);opacity:0.4"></div>
+            <div style="flex:1;height:18px;border-radius:2px;background:var(--green);opacity:0.2"></div>
+            <div style="flex:1;height:18px;border-radius:2px;background:var(--border)"></div>
+            <div style="flex:1;height:18px;border-radius:2px;background:var(--border)"></div>
+          </div>
+          <div style="font-size:10px;color:var(--ink-secondary)">历史最长 12 天</div>
+        </div>
+      </div>
+
+      <!-- Tags — collapsible -->
+      <div class="collapsible" id="tagsCard">
+        <div class="collapsible-header" onclick="toggleCollapsible(this)">
+          <span class="label">标签</span>
+          <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+        <div class="collapsible-content">
+          <div style="display:flex;flex-wrap:wrap;gap:4px">
+            <span style="background:rgba(255,59,48,0.08);color:var(--red);padding:1px 7px;border-radius:8px;font-size:10px;font-weight:500">工作</span>
+            <span style="background:rgba(0,122,255,0.08);color:var(--accent);padding:1px 7px;border-radius:8px;font-size:10px;font-weight:500">个人</span>
+            <span style="background:rgba(52,199,89,0.08);color:var(--green);padding:1px 7px;border-radius:8px;font-size:10px;font-weight:500">学习</span>
+            <span style="background:rgba(255,149,0,0.08);color:var(--orange);padding:1px 7px;border-radius:8px;font-size:10px;font-weight:500">重要</span>
+            <span style="background:rgba(88,86,214,0.08);color:var(--purple);padding:1px 7px;border-radius:8px;font-size:10px;font-weight:500">创意</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="theme-toggle" id="themeToggle">
+  <div class="track"><div class="thumb"></div></div>
+  <span>深色</span>
+</div>
+
+<script>
+// Collapsible panels
+function toggleCollapsible(header) {
+  const card = header.parentElement;
+  card.classList.toggle('open');
+}
+// Sidebar toggle
+const sidebar = document.getElementById('sidebar');
+const sidebarToggle = document.getElementById('sidebarToggle');
+sidebarToggle.addEventListener('click', () => {
+  sidebar.classList.toggle('expanded');
+  sidebarToggle.title = sidebar.classList.contains('expanded') ? '收起侧边栏' : '展开侧边栏';
+});
+// Navigation
+document.querySelectorAll('.nav-item').forEach(item => {
+  item.addEventListener('click', function() {
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    this.classList.add('active');
+    document.querySelectorAll('.view-section').forEach(v => v.classList.remove('active'));
+    const el = document.getElementById('view-' + this.dataset.view);
+    if (el) el.classList.add('active');
+  });
+});
+// Segment buttons
+document.querySelectorAll('.btn-segment').forEach(seg => {
+  seg.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', function() {
+      seg.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+    });
+  });
+});
+// Theme toggle
+document.getElementById('themeToggle').addEventListener('click', function() {
+  document.documentElement.classList.toggle('dark');
+  this.classList.toggle('dark');
+  this.querySelector('span').textContent = this.classList.contains('dark') ? '浅色' : '深色';
+});
+// Checkboxes
+document.querySelectorAll('.task-checkbox, .subtask-checkbox').forEach(cb => {
+  cb.addEventListener('click', function(e) {
+    e.stopPropagation();
+    this.classList.toggle('done');
+    const t = this.closest('.task-item, .subtask-item')?.querySelector('.task-title, .subtask-title');
+    if (t) t.classList.toggle('done');
+  });
+});
+// Heatmap
+const hm = document.getElementById('heatmap');
+if (hm) {
+  for (let w = 0; w < 53; w++) {
+    const col = document.createElement('div');
+    col.style.cssText = 'display:flex;gap:1.5px;flex-direction:column';
+    for (let d = 0; d < 7; d++) {
+      const r = Math.random();
+      const lv = r < 0.3 ? 0 : r < 0.5 ? 1 : r < 0.7 ? 2 : r < 0.85 ? 3 : 4;
+      const cell = document.createElement('div');
+      cell.className = 'heatmap-cell l' + lv;
+      cell.style.cssText = 'width:7px;height:7px';
+      col.appendChild(cell);
+    }
+    hm.appendChild(col);
+  }
+}
+</script>
+</body>
+</html>

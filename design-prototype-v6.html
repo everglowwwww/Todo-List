@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>瞬 Tempo — Prototype v6</title>
+<style>
+@font-face { font-family: 'STZhongsong'; src: local('华文中宋'), local('STZhongsong'), local('SimSun'); }
+
+:root {
+  --spring: cubic-bezier(0.25, 1, 0.5, 1);
+  --spring-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --glass: rgba(255,255,255,0.58);
+  --glass-border: rgba(255,255,255,0.25);
+  --glass-shadow: 0 4px 24px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.03);
+  --ink: #000000;
+  --ink-secondary: #515154;
+  --ink-tertiary: #8e8e93;
+  --ink-quaternary: #aeaeb2;
+  --accent: #007aff;
+  --red: rgb(245,55,54);
+  --green: #34c759;
+  --orange: #ff9500;
+  --purple: #5856d6;
+  --tag-urgent-bg: rgba(245,55,54,0.12);
+  --tag-high-bg: rgba(255,149,0,0.12);
+  --tag-med-bg: rgba(0,122,255,0.1);
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --font-title: 'STZhongsong', '华文中宋', 'SimSun', '宋体', serif;
+  --font-body: 'SimSun', '宋体', 'Century Gothic', sans-serif;
+  --font-en: 'Century Gothic', sans-serif;
+  --sidebar-w: 44px;
+  --sidebar-expanded: 155px;
+  --panel-w: 220px;
+  --titlebar-h: 34px;
+}
+
+.dark {
+  --glass: rgba(35,35,38,0.65);
+  --glass-border: rgba(255,255,255,0.06);
+  --glass-shadow: 0 4px 24px rgba(0,0,0,0.2);
+  --ink: #f5f5f7;
+  --ink-secondary: #a1a1a6;
+  --ink-tertiary: #6e6e73;
+  --ink-quaternary: #48484a;
+  --accent: #0a84ff;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: var(--font-body);
+  color: var(--ink);
+  overflow: hidden;
+  height: 100vh;
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  position: relative;
+}
+
+/* ===== Background for glass effect ===== */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(160deg, #e8eaed 0%, #d5d8dd 40%, #e0e2e6 100%);
+  z-index: -1;
+}
+.dark body::before {
+  background: linear-gradient(160deg, #1a1a1e 0%, #121214 40%, #1e1e22 100%);
+}
+
+/* ===== Glass Panel ===== */
+.glass-panel {
+  background: var(--glass);
+  backdrop-filter: blur(40px) saturate(1.6);
+  -webkit-backdrop-filter: blur(40px) saturate(1.6);
+  border: 0.5px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  border-radius: var(--radius-lg);
+}
+
+h1, h2, h3, .font-title { font-family: var(--font-title); font-weight: 600; }
+.font-en { font-family: var(--font-en); }
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  max-width: 1220px;
+  margin: 0 auto;
+  padding: 0 10px;
+}
+
+/* ===== Titlebar ===== */
+.titlebar {
+  height: var(--titlebar-h);
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+  -webkit-app-region: drag;
+  user-select: none;
+  flex-shrink: 0;
+  gap: 10px;
+}
+.traffic-lights { display: flex; gap: 7px; -webkit-app-region: no-drag; padding: 0 4px; }
+.traffic-light { width: 11px; height: 11px; border-radius: 50%; cursor: pointer; }
+.tl-close { background: #ff5f57; }
+.tl-minimize { background: #febc2e; }
+.tl-zoom { background: #28c840; }
+.titlebar-title { font-size: 12px; font-weight: 600; color: var(--ink-secondary); font-family: var(--font-title); letter-spacing: 0.5px; }
+.titlebar-spacer { flex: 1; }
+
+.main-layout { display: flex; flex: 1; gap: 10px; padding-bottom: 10px; min-height: 0; }
+
+/* ===== Sidebar ===== */
+.sidebar {
+  width: var(--sidebar-w);
+  flex-shrink: 0;
+  padding: 10px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 1px;
+  transition: width 0.35s var(--spring);
+  background: var(--glass);
+  backdrop-filter: blur(40px) saturate(1.6);
+  -webkit-backdrop-filter: blur(40px) saturate(1.6);
+  border: 0.5px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  border-radius: var(--radius-lg);
+}
+.sidebar.expanded { width: var(--sidebar-expanded); }
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  margin: 0 5px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s var(--spring);
+}
+.sidebar.expanded .nav-item { justify-content: flex-start; gap: 9px; padding: 0 10px; }
+
+.nav-item svg {
+  width: 20px; height: 20px;
+  flex-shrink: 0;
+  color: var(--ink-tertiary);
+  transition: color 0.2s var(--spring);
+  position: relative; z-index: 1;
+}
+.nav-item:hover svg { color: var(--ink); }
+.nav-item.active svg { color: var(--ink); }
+
+.nav-item .hover-pill {
+  position: absolute; inset: 0;
+  border-radius: var(--radius-sm);
+  background: rgba(0,0,0,0.04);
+  transform: scaleY(0.7); opacity: 0;
+  transition: transform 0.3s var(--spring), opacity 0.25s var(--spring);
+  pointer-events: none;
+}
+.dark .nav-item .hover-pill { background: rgba(255,255,255,0.06); }
+.nav-item:hover .hover-pill { transform: scaleY(1); opacity: 1; }
+.nav-item.active { background: rgba(0,0,0,0.04); }
+.dark .nav-item.active { background: rgba(255,255,255,0.06); }
+
+.nav-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-secondary);
+  white-space: nowrap;
+  opacity: 0; width: 0; overflow: hidden;
+  transition: opacity 0.25s var(--spring), width 0.35s var(--spring);
+  position: relative; z-index: 1;
+  font-family: var(--font-body);
+}
+.sidebar.expanded .nav-label { opacity: 1; width: auto; overflow: visible; }
+
+.sidebar-toggle {
+  width: 26px; height: 26px;
+  margin: auto auto 5px;
+  border-radius: var(--radius-sm);
+  border: none; background: transparent;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--ink-quaternary);
+  transition: all 0.2s var(--spring);
+  flex-shrink: 0;
+}
+.sidebar-toggle:hover { background: rgba(0,0,0,0.04); color: var(--ink); }
+.dark .sidebar-toggle:hover { background: rgba(255,255,255,0.06); }
+.sidebar-toggle svg { width: 13px; height: 13px; transition: transform 0.35s var(--spring); }
+.sidebar.expanded .sidebar-toggle svg { transform: rotate(180deg); }
+.sidebar-divider { height: 1px; margin: 5px 12px; background: rgba(0,0,0,0.06); flex-shrink: 0; }
+.dark .sidebar-divider { background: rgba(255,255,255,0.06); }
+
+/* ===== Content ===== */
+.content {
+  flex: 1;
+  min-width: 0;
+  padding: 18px 22px;
+  overflow-y: auto;
+  background: var(--glass);
+  backdrop-filter: blur(40px) saturate(1.6);
+  -webkit-backdrop-filter: blur(40px) saturate(1.6);
+  border: 0.5px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.content::-webkit-scrollbar { width: 4px; }
+.content::-webkit-scrollbar-thumb { background: var(--ink-quaternary); border-radius: 2px; }
+
+.view-section { display: none; flex-direction: column; gap: 16px; }
+.view-section.active { display: flex; }
+
+.view-header { display: flex; align-items: center; justify-content: space-between; }
+.view-header h1 { font-size: 19px; font-weight: 600; letter-spacing: 0.5px; color: var(--ink); }
+.view-header .subtitle { font-size: 11px; color: var(--ink-secondary); margin-top: 2px; }
+.view-controls { display: flex; align-items: center; gap: 6px; }
+.btn-icon { width: 26px; height: 26px; border-radius: var(--radius-sm); border: none; background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--ink-secondary); transition: all 0.12s var(--spring); }
+.btn-icon:hover { background: rgba(0,0,0,0.04); color: var(--ink); }
+.dark .btn-icon:hover { background: rgba(255,255,255,0.06); }
+.btn-icon svg { width: 13px; height: 13px; }
+.btn-segment { display: flex; background: rgba(0,0,0,0.03); border-radius: var(--radius-sm); padding: 2px; }
+.dark .btn-segment { background: rgba(255,255,255,0.04); }
+.btn-segment button { padding: 3px 9px; border: none; background: transparent; font-size: 11px; font-weight: 500; color: var(--ink-secondary); border-radius: 4px; cursor: pointer; transition: all 0.12s var(--spring); font-family: var(--font-body); }
+.btn-segment button.active { background: var(--glass); color: var(--ink); box-shadow: 0 0 0 0.5px var(--glass-border); }
+.btn-primary { padding: 4px 12px; background: var(--accent); color: white; border: none; border-radius: var(--radius-sm); font-size: 11px; font-weight: 500; cursor: pointer; font-family: var(--font-body); transition: all 0.1s; }
+.btn-primary:hover { opacity: 0.85; }
+
+/* ===== Calendar ===== */
+.calendar-section { display: flex; flex-direction: column; }
+.calendar-header-row { display: grid; grid-template-columns: repeat(7, 1fr); }
+.calendar-day-header {
+  text-align: center;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ink-tertiary);
+  padding: 5px 0 7px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  font-family: var(--font-en);
+}
+.calendar-week {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  border-top: 0.5px solid rgba(0,0,0,0.06);
+  min-height: 72px;
+}
+.dark .calendar-week { border-top-color: rgba(255,255,255,0.06); }
+.calendar-week:last-child { border-bottom: 0.5px solid rgba(0,0,0,0.06); }
+.dark .calendar-week:last-child { border-bottom-color: rgba(255,255,255,0.06); }
+
+.day-cell {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 6px 6px;
+  cursor: pointer;
+  transition: background 0.1s;
+  min-height: 68px;
+}
+.day-cell:hover { background: rgba(0,0,0,0.02); }
+.dark .day-cell:hover { background: rgba(255,255,255,0.02); }
+.day-cell.other-month { opacity: 0.3; }
+
+.date-circle {
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink);
+  flex-shrink: 0;
+  margin-bottom: 3px;
+}
+.day-cell.today .date-circle { background: rgb(245,55,54); color: white; }
+
+.cell-tasks { display: flex; flex-direction: column; gap: 2px; flex: 1; overflow: hidden; }
+.cell-task {
+  font-size: 9.5px;
+  line-height: 1.3;
+  padding: 1px 3px;
+  border-radius: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  color: var(--ink-secondary);
+}
+.cell-task:hover { background: rgba(0,0,0,0.02); }
+.cell-task .dot { display: inline-block; width: 4px; height: 4px; border-radius: 50%; margin-right: 3px; vertical-align: middle; }
+.cell-task .time { color: var(--ink-tertiary); margin-right: 3px; font-family: var(--font-en); font-size: 9px; }
+
+/* Detailed Tasks */
+.tasks-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 3px; }
+.tasks-header h3 { font-size: 13px; font-weight: 500; letter-spacing: 0.5px; }
+.tasks-header .count { font-size: 11px; color: var(--ink-secondary); }
+.task-item { display: flex; align-items: flex-start; gap: 8px; padding: 5px 7px; border-radius: var(--radius-sm); transition: all 0.1s; cursor: pointer; }
+.task-item:hover { background: rgba(0,0,0,0.02); }
+.dark .task-item:hover { background: rgba(255,255,255,0.02); }
+.task-checkbox { width: 15px; height: 15px; min-width: 15px; border-radius: 50%; border: 1.5px solid var(--ink-quaternary); cursor: pointer; transition: all 0.2s var(--spring-bounce); margin-top: 2px; display: flex; align-items: center; justify-content: center; }
+.task-checkbox:hover { border-color: var(--accent); }
+.task-checkbox.done { background: var(--green); border-color: var(--green); }
+.task-checkbox.done::after { content: ''; width: 5px; height: 2.5px; border-left: 1.5px solid white; border-bottom: 1.5px solid white; transform: rotate(-45deg); margin-top: -0.5px; }
+.task-body { flex: 1; min-width: 0; }
+.task-title { font-size: 13px; font-weight: 500; line-height: 1.35; color: var(--ink); }
+.task-title.done { text-decoration: line-through; color: var(--ink-tertiary); }
+.task-meta { display: flex; gap: 6px; margin-top: 1px; font-size: 10.5px; color: var(--ink-secondary); align-items: center; }
+.task-tag { padding: 0 5px; border-radius: 3px; font-size: 10px; font-weight: 500; line-height: 16px; }
+.tag-urgent { background: var(--tag-urgent-bg); color: var(--red); }
+.tag-high { background: var(--tag-high-bg); color: var(--orange); }
+.tag-med { background: var(--tag-med-bg); color: var(--accent); }
+.task-subtasks { margin-top: 3px; padding-left: 23px; display: flex; flex-direction: column; gap: 2px; }
+.subtask-item { display: flex; align-items: center; gap: 6px; padding: 1px 4px; border-radius: 3px; }
+.subtask-item:hover { background: rgba(0,0,0,0.02); }
+.subtask-checkbox { width: 13px; height: 13px; min-width: 13px; border-radius: 50%; border: 1.5px solid var(--ink-quaternary); cursor: pointer; transition: all 0.15s var(--spring-bounce); display: flex; align-items: center; justify-content: center; }
+.subtask-checkbox:hover { border-color: var(--accent); }
+.subtask-checkbox.done { background: var(--green); border-color: var(--green); }
+.subtask-checkbox.done::after { content: ''; width: 4px; height: 2px; border-left: 1.5px solid white; border-bottom: 1.5px solid white; transform: rotate(-45deg); margin-top: -0.5px; }
+.subtask-title { font-size: 13px; font-weight: 400; color: var(--ink-secondary); }
+.subtask-title.done { text-decoration: line-through; color: var(--ink-tertiary); }
+.quick-add { display: flex; align-items: center; gap: 7px; padding: 6px 8px; border-radius: var(--radius-sm); cursor: text; margin-top: 3px; transition: all 0.12s; }
+.quick-add:hover { background: rgba(0,0,0,0.02); }
+.quick-add span { font-size: 12px; color: var(--ink-quaternary); }
+.quick-add svg { width: 13px; height: 13px; color: var(--ink-quaternary); }
+
+/* ===== Stats ===== */
+.stats-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.stat-card { background: rgba(0,0,0,0.02); border-radius: var(--radius-md); padding: 12px; display: flex; flex-direction: column; gap: 3px; }
+.dark .stat-card { background: rgba(255,255,255,0.03); }
+.stat-label { font-size: 9px; font-weight: 600; color: var(--ink-tertiary); text-transform: uppercase; letter-spacing: 0.5px; font-family: var(--font-en); }
+.stat-value { font-size: 21px; font-weight: 700; letter-spacing: -0.5px; line-height: 1.1; color: var(--ink); font-family: var(--font-title); }
+.stat-value .unit { font-size: 11px; font-weight: 500; color: var(--ink-secondary); font-family: var(--font-body); }
+.stat-change { font-size: 10px; font-weight: 500; color: var(--green); }
+.completion-list { display: flex; flex-direction: column; gap: 3px; }
+.completion-row { display: flex; align-items: center; gap: 6px; padding: 2px 0; }
+.completion-row .day-label { width: 24px; font-size: 10px; font-weight: 600; color: var(--ink-secondary); font-family: var(--font-en); }
+.completion-row .bar-track { flex: 1; height: 5px; border-radius: 2.5px; background: rgba(0,0,0,0.04); overflow: hidden; }
+.dark .completion-row .bar-track { background: rgba(255,255,255,0.04); }
+.completion-row .bar-fill { height: 100%; border-radius: 2.5px; background: var(--accent); transition: width 0.5s var(--spring); }
+.completion-row .bar-pct { width: 24px; text-align: right; font-size: 10px; font-weight: 600; color: var(--ink-secondary); font-variant-numeric: tabular-nums; font-family: var(--font-en); }
+.heatmap-cell { border-radius: 2px; aspect-ratio: 1; min-width: 7px; }
+.heatmap-cell.l0 { background: rgba(0,0,0,0.03); }
+.heatmap-cell.l1 { background: rgba(0,122,255,0.12); }
+.heatmap-cell.l2 { background: rgba(0,122,255,0.25); }
+.heatmap-cell.l3 { background: rgba(0,122,255,0.45); }
+.heatmap-cell.l4 { background: var(--accent); }
+.dark .heatmap-cell.l0 { background: rgba(255,255,255,0.03); }
+
+/* ===== Right Panel ===== */
+.right-panel-wrap {
+  width: var(--panel-w);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  position: relative;
+  transition: width 0.4s var(--spring);
+}
+.right-panel-wrap.collapsed { width: 0; }
+
+/* Right Panel Toggle Button */
+.right-toggle {
+  position: absolute;
+  left: -9px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 20;
+  width: 18px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--glass);
+  backdrop-filter: blur(40px) saturate(1.6);
+  -webkit-backdrop-filter: blur(40px) saturate(1.6);
+  border: 0.5px solid var(--glass-border);
+  border-radius: 9px 0 0 9px;
+  border-right: none;
+  cursor: pointer;
+  color: var(--ink-secondary);
+  transition: all 0.15s var(--spring);
+  box-shadow: -1px 0 6px rgba(0,0,0,0.04);
+}
+.right-toggle:hover { color: var(--ink); background: rgba(255,255,255,0.7); }
+.dark .right-toggle:hover { background: rgba(50,50,55,0.7); }
+.right-toggle svg { width: 10px; height: 10px; transition: transform 0.35s var(--spring); }
+
+.right-panel-wrap.collapsed .right-toggle {
+  left: -18px;
+  border-radius: 0 9px 9px 0;
+  border: 0.5px solid var(--glass-border);
+  border-left: none;
+  box-shadow: 1px 0 6px rgba(0,0,0,0.04);
+}
+.right-panel-wrap.collapsed .right-toggle svg { transform: rotate(180deg); }
+
+.right-panel {
+  flex: 1;
+  background: var(--glass);
+  backdrop-filter: blur(40px) saturate(1.6);
+  -webkit-backdrop-filter: blur(40px) saturate(1.6);
+  border: 0.5px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  border-radius: var(--radius-lg);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: var(--panel-w);
+  overflow: hidden;
+}
+
+.right-card-title {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--ink-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  font-family: var(--font-en);
+  margin-bottom: 4px;
+}
+.right-divider { height: 0.5px; background: rgba(0,0,0,0.06); }
+.dark .right-divider { background: rgba(255,255,255,0.06); }
+
+/* ===== Focus ===== */
+.focus-timer { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; padding: 28px 0 8px; gap: 22px; }
+.focus-ring { position: relative; width: 160px; height: 160px; }
+.focus-ring svg { width: 100%; height: 100%; }
+.focus-ring .ring-bg { fill: none; stroke: rgba(0,0,0,0.06); stroke-width: 2; }
+.dark .focus-ring .ring-bg { stroke: rgba(255,255,255,0.06); }
+.focus-ring .ring-fg { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: round; }
+.focus-display { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.focus-display .time { font-size: 36px; font-weight: 400; letter-spacing: -1px; font-variant-numeric: tabular-nums; color: var(--ink); font-family: var(--font-en); }
+.focus-display .label { font-size: 10px; color: var(--ink-tertiary); margin-top: 3px; }
+.focus-btn { padding: 7px 32px; background: var(--accent); color: white; border: none; border-radius: 16px; font-size: 12px; font-weight: 500; cursor: pointer; font-family: var(--font-body); transition: all 0.2s var(--spring-bounce); box-shadow: 0 2px 12px rgba(0,122,255,0.2); }
+.focus-btn:hover { opacity: 0.9; transform: scale(1.02); }
+.focus-stats { display: flex; gap: 16px; font-size: 11px; color: var(--ink-secondary); }
+.focus-stats strong { color: var(--ink); font-weight: 600; }
+
+/* ===== Theme Toggle ===== */
+.theme-toggle {
+  position: fixed; bottom: 12px; right: 12px; z-index: 100;
+  display: flex; align-items: center; gap: 5px;
+  background: var(--glass);
+  backdrop-filter: blur(40px) saturate(1.6);
+  -webkit-backdrop-filter: blur(40px) saturate(1.6);
+  border: 0.5px solid var(--glass-border);
+  border-radius: 14px;
+  padding: 3px 9px 3px 3px;
+  cursor: pointer;
+  box-shadow: var(--glass-shadow);
+  transition: all 0.15s var(--spring);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--ink-secondary);
+  font-family: var(--font-body);
+}
+.theme-toggle .track { width: 24px; height: 13px; border-radius: 7px; background: var(--ink-quaternary); position: relative; }
+.theme-toggle .thumb { width: 10px; height: 10px; border-radius: 50%; background: white; position: absolute; top: 1.5px; left: 1.5px; transition: transform 0.2s var(--spring); }
+.theme-toggle.dark .track { background: var(--accent); }
+.theme-toggle.dark .thumb { transform: translateX(11px); }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="titlebar">
+    <div class="traffic-lights">
+      <div class="traffic-light tl-close"></div>
+      <div class="traffic-light tl-minimize"></div>
+      <div class="traffic-light tl-zoom"></div>
+    </div>
+    <span class="titlebar-title">瞬</span>
+    <span class="font-en" style="font-size:11px;font-weight:600;color:var(--ink-secondary);letter-spacing:1.5px;">TEMPO</span>
+    <div class="titlebar-spacer"></div>
+  </div>
+
+  <div class="main-layout">
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+      <div class="nav-item active" data-view="calendar">
+        <div class="hover-pill"></div>
+        <svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="4" width="18" height="18" rx="2"/><rect x="3" y="10" width="18" height="3" fill="var(--bg)" opacity="0.9"/><line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="8" y1="2" x2="8" y2="6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <span class="nav-label">日历</span>
+      </div>
+      <div class="nav-item" data-view="today">
+        <div class="hover-pill"></div>
+        <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        <span class="nav-label">今日</span>
+      </div>
+      <div class="nav-item" data-view="stats">
+        <div class="hover-pill"></div>
+        <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="14" width="3" height="7" rx="0.5"/><rect x="10.5" y="9" width="3" height="12" rx="0.5"/><rect x="15" y="4" width="3" height="17" rx="0.5"/></svg>
+        <span class="nav-label">统计</span>
+      </div>
+      <div class="sidebar-divider"></div>
+      <div class="nav-item" data-view="focus">
+        <div class="hover-pill"></div>
+        <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2.5"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2" fill="var(--bg)"/></svg>
+        <span class="nav-label">专注</span>
+      </div>
+      <div class="nav-item" data-view="tags">
+        <div class="hover-pill"></div>
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><circle cx="7" cy="7" r="1.5" fill="var(--bg)"/></svg>
+        <span class="nav-label">标签</span>
+      </div>
+      <div class="sidebar-divider"></div>
+      <div class="nav-item" data-view="settings">
+        <div class="hover-pill"></div>
+        <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" opacity="0.3"/><circle cx="12" cy="12" r="3" fill="var(--bg)"/></svg>
+        <span class="nav-label">设置</span>
+      </div>
+      <button class="sidebar-toggle" id="sidebarToggle">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
+    </div>
+
+    <!-- Main Content -->
+    <div class="content" id="mainContent">
+      <div class="view-section active" id="view-calendar">
+        <div class="view-header">
+          <div><h1>2026年7月</h1><div class="subtitle">12 项任务</div></div>
+          <div class="view-controls">
+            <div class="btn-segment"><button class="active">月</button><button>周</button><button>日</button></div>
+            <button class="btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg></button>
+            <button class="btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg></button>
+            <button class="btn-primary">今天</button>
+          </div>
+        </div>
+
+        <div class="calendar-section">
+          <div class="calendar-header-row">
+            <div class="calendar-day-header">Sun</div><div class="calendar-day-header">Mon</div><div class="calendar-day-header">Tue</div><div class="calendar-day-header">Wed</div><div class="calendar-day-header">Thu</div><div class="calendar-day-header">Fri</div><div class="calendar-day-header">Sat</div>
+          </div>
+          <div class="calendar-week">
+            <div class="day-cell other-month"><div class="date-circle"></div></div>
+            <div class="day-cell other-month"><div class="date-circle"></div></div>
+            <div class="day-cell other-month"><div class="date-circle"></div></div>
+            <div class="day-cell other-month"><div class="date-circle"></div></div>
+            <div class="day-cell today">
+              <div class="date-circle">21</div>
+              <div class="cell-tasks">
+                <div class="cell-task"><span class="dot" style="background:var(--red)"></span><span class="time">14:00</span>设计评审</div>
+                <div class="cell-task"><span class="dot" style="background:var(--orange)"></span><span class="time">10:00</span>需求文档</div>
+                <div class="cell-task"><span class="dot" style="background:var(--accent)"></span>周报提交</div>
+              </div>
+            </div>
+            <div class="day-cell other-month"><div class="date-circle">22</div><div class="cell-tasks"><div class="cell-task"><span class="dot" style="background:var(--orange)"></span>团队午餐</div></div></div>
+            <div class="day-cell other-month"><div class="date-circle">23</div></div>
+          </div>
+          <div class="calendar-week">
+            <div class="day-cell other-month"><div class="date-circle">24</div><div class="cell-tasks"><div class="cell-task"><span class="dot" style="background:var(--purple)"></span>UI 评审</div><div class="cell-task"><span class="dot" style="background:var(--red)"></span>版本发布</div></div></div>
+            <div class="day-cell other-month"><div class="date-circle">25</div></div>
+            <div class="day-cell other-month"><div class="date-circle">26</div></div>
+            <div class="day-cell other-month"><div class="date-circle">27</div></div>
+            <div class="day-cell other-month"><div class="date-circle">28</div><div class="cell-tasks"><div class="cell-task"><span class="dot" style="background:var(--accent)"></span>周报</div></div></div>
+            <div class="day-cell other-month"><div class="date-circle">29</div></div>
+            <div class="day-cell other-month"><div class="date-circle">30</div></div>
+          </div>
+          <div class="calendar-week">
+            <div class="day-cell other-month"><div class="date-circle">31</div></div>
+            <div class="day-cell"><div class="date-circle">1</div></div>
+            <div class="day-cell"><div class="date-circle">2</div></div>
+            <div class="day-cell"><div class="date-circle">3</div></div>
+            <div class="day-cell"><div class="date-circle">4</div></div>
+            <div class="day-cell"><div class="date-circle">5</div></div>
+            <div class="day-cell"><div class="date-circle">6</div></div>
+          </div>
+          <div class="calendar-week">
+            <div class="day-cell"><div class="date-circle">7</div></div>
+            <div class="day-cell"><div class="date-circle">8</div></div>
+            <div class="day-cell"><div class="date-circle">9</div></div>
+            <div class="day-cell"><div class="date-circle">10</div></div>
+            <div class="day-cell"><div class="date-circle">11</div></div>
+            <div class="day-cell"><div class="date-circle">12</div></div>
+            <div class="day-cell"><div class="date-circle">13</div></div>
+          </div>
+        </div>
+
+        <div>
+          <div class="tasks-header"><h3>6月21日 · 星期日</h3><span class="count">3/3 完成</span></div>
+          <div class="task-item"><div class="task-checkbox done"></div><div class="task-body"><div class="task-title done">设计评审会议</div><div class="task-meta"><span class="font-en">14:00 — 15:00</span><span class="task-tag tag-urgent">紧急</span></div><div class="task-subtasks"><div class="subtask-item"><div class="subtask-checkbox done"></div><span class="subtask-title done">准备 PPT</span></div><div class="subtask-item"><div class="subtask-checkbox done"></div><span class="subtask-title done">确认参会人员</span></div></div></div></div>
+          <div class="task-item"><div class="task-checkbox done"></div><div class="task-body"><div class="task-title done">完成需求文档</div><div class="task-meta"><span class="font-en">10:00 — 12:00</span><span class="task-tag tag-high">高</span></div></div></div>
+          <div class="task-item"><div class="task-checkbox done"></div><div class="task-body"><div class="task-title done">周报提交</div><div class="task-meta"><span class="font-en">18:00</span><span class="task-tag tag-med">中</span></div></div></div>
+          <div class="quick-add"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span>添加任务...</span></div>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="view-section" id="view-stats">
+        <div class="view-header"><div><h1>统计</h1><div class="subtitle">效率趋势</div></div><div class="view-controls"><div class="btn-segment"><button class="active">每日</button><button>每月</button><button>至今</button></div></div></div>
+        <div class="stats-row">
+          <div class="stat-card"><div class="stat-label">Today</div><div class="stat-value">3 <span class="unit">项</span></div><div class="stat-change">100%</div></div>
+          <div class="stat-card"><div class="stat-label">Week</div><div class="stat-value">21 <span class="unit">项</span></div><div class="stat-change">+3</div></div>
+          <div class="stat-card"><div class="stat-label">Month</div><div class="stat-value">78 <span class="unit">项</span></div><div class="stat-change">+12%</div></div>
+        </div>
+        <div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px"><span style="font-size:11.5px;font-weight:500;font-family:var(--font-title)">本周趋势</span></div>
+          <div class="completion-list">
+            <div class="completion-row"><span class="day-label">Mon</span><div class="bar-track"><div class="bar-fill" style="width:85%"></div></div><span class="bar-pct">85%</span></div>
+            <div class="completion-row"><span class="day-label">Tue</span><div class="bar-track"><div class="bar-fill" style="width:92%"></div></div><span class="bar-pct">92%</span></div>
+            <div class="completion-row"><span class="day-label">Wed</span><div class="bar-track"><div class="bar-fill" style="width:78%"></div></div><span class="bar-pct">78%</span></div>
+            <div class="completion-row"><span class="day-label">Thu</span><div class="bar-track"><div class="bar-fill" style="width:100%"></div></div><span class="bar-pct">100%</span></div>
+            <div class="completion-row"><span class="day-label">Fri</span><div class="bar-track"><div class="bar-fill" style="width:60%"></div></div><span class="bar-pct">60%</span></div>
+            <div class="completion-row"><span class="day-label">Sat</span><div class="bar-track"><div class="bar-fill" style="width:95%"></div></div><span class="bar-pct">95%</span></div>
+            <div class="completion-row"><span class="day-label">Sun</span><div class="bar-track"><div class="bar-fill" style="width:100%"></div></div><span class="bar-pct">100%</span></div>
+          </div>
+        </div>
+        <div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
+            <span style="font-size:11.5px;font-weight:500;font-family:var(--font-title)">年度贡献</span>
+            <span class="font-en" style="font-size:9.5px;color:var(--ink-secondary)">187 tasks</span>
+          </div>
+          <div style="display:flex;gap:2px;flex-wrap:wrap" id="heatmap"></div>
+          <div style="display:flex;align-items:center;gap:3px;justify-content:flex-end;margin-top:5px;font-size:8.5px;color:var(--ink-tertiary);font-family:var(--font-en)">
+            <span>Less</span>
+            <div class="heatmap-cell l0" style="width:7px;height:7px"></div>
+            <div class="heatmap-cell l1" style="width:7px;height:7px"></div>
+            <div class="heatmap-cell l2" style="width:7px;height:7px"></div>
+            <div class="heatmap-cell l3" style="width:7px;height:7px"></div>
+            <div class="heatmap-cell l4" style="width:7px;height:7px"></div>
+            <span>More</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Focus -->
+      <div class="view-section" id="view-focus">
+        <div class="view-header"><div><h1>专注</h1><div class="subtitle">25 分钟 · 番茄工作法</div></div></div>
+        <div class="focus-timer">
+          <div class="focus-ring">
+            <svg viewBox="0 0 100 100"><circle class="ring-bg" cx="50" cy="50" r="44"/><circle class="ring-fg" cx="50" cy="50" r="44" stroke-dasharray="276" stroke-dashoffset="69" transform="rotate(-90 50 50)"/></svg>
+            <div class="focus-display"><span class="time">18:42</span><span class="label">剩余时间</span></div>
+          </div>
+          <button class="focus-btn">开始</button>
+          <div class="focus-stats"><span>今日 <strong>2h 15m</strong></span><span>已完成 <strong>4</strong></span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Panel — single collapsible with toggle button -->
+    <div class="right-panel-wrap" id="rightPanel">
+      <button class="right-toggle" id="rightToggle" title="收起右侧面板">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <div class="right-panel">
+        <div><div class="right-card-title">Today</div>
+          <div style="display:flex;justify-content:space-between;padding:3px 0"><span style="font-size:12px;color:var(--ink-secondary)">已完成</span><span style="font-size:12px;font-weight:600;color:var(--green)">3</span></div>
+          <div style="display:flex;justify-content:space-between;padding:3px 0"><span style="font-size:12px;color:var(--ink-secondary)">待办</span><span style="font-size:12px;font-weight:600;color:var(--ink-secondary)">0</span></div>
+          <div style="display:flex;justify-content:space-between;padding:3px 0;border-top:0.5px solid rgba(0,0,0,0.06);margin-top:2px;padding-top:6px"><span style="font-size:12px;color:var(--ink-secondary)">完成率</span><span style="font-size:12px;font-weight:600;color:var(--accent)">100%</span></div></div>
+        <div class="right-divider"></div>
+        <div><div class="right-card-title">连续打卡</div>
+          <div style="display:flex;align-items:baseline;gap:3px;margin-bottom:6px"><span style="font-size:26px;font-weight:700;line-height:1;font-family:var(--font-title)">7</span><span style="font-size:10px;color:var(--ink-secondary)">天</span></div>
+          <div style="display:flex;gap:2px;margin-bottom:4px">
+            <div style="flex:1;height:16px;border-radius:2px;background:var(--green);opacity:1"></div>
+            <div style="flex:1;height:16px;border-radius:2px;background:var(--green);opacity:0.8"></div>
+            <div style="flex:1;height:16px;border-radius:2px;background:var(--green);opacity:0.6"></div>
+            <div style="flex:1;height:16px;border-radius:2px;background:var(--green);opacity:0.4"></div>
+            <div style="flex:1;height:16px;border-radius:2px;background:var(--green);opacity:0.2"></div>
+            <div style="flex:1;height:16px;border-radius:2px;background:rgba(0,0,0,0.03)"></div>
+            <div style="flex:1;height:16px;border-radius:2px;background:rgba(0,0,0,0.03)"></div>
+          </div>
+          <div style="font-size:10px;color:var(--ink-secondary)">历史最长 12 天</div></div>
+        <div class="right-divider"></div>
+        <div><div class="right-card-title">标签</div>
+          <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:5px">
+            <span style="background:var(--tag-urgent-bg);color:var(--red);padding:2px 7px;border-radius:7px;font-size:10px;font-weight:500">工作</span>
+            <span style="background:var(--tag-med-bg);color:var(--accent);padding:2px 7px;border-radius:7px;font-size:10px;font-weight:500">个人</span>
+            <span style="background:rgba(52,199,89,0.1);color:var(--green);padding:2px 7px;border-radius:7px;font-size:10px;font-weight:500">学习</span>
+            <span style="background:var(--tag-high-bg);color:var(--orange);padding:2px 7px;border-radius:7px;font-size:10px;font-weight:500">重要</span>
+            <span style="background:rgba(88,86,214,0.1);color:var(--purple);padding:2px 7px;border-radius:7px;font-size:10px;font-weight:500">创意</span>
+          </div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="theme-toggle" id="themeToggle">
+  <div class="track"><div class="thumb"></div></div>
+  <span>深色</span>
+</div>
+
+<script>
+document.getElementById('sidebarToggle').addEventListener('click', () => {
+  document.getElementById('sidebar').classList.toggle('expanded');
+});
+document.getElementById('rightToggle').addEventListener('click', (e) => {
+  e.stopPropagation();
+  document.getElementById('rightPanel').classList.toggle('collapsed');
+});
+document.querySelectorAll('.nav-item').forEach(item => {
+  item.addEventListener('click', function() {
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    this.classList.add('active');
+    document.querySelectorAll('.view-section').forEach(v => v.classList.remove('active'));
+    const el = document.getElementById('view-' + this.dataset.view);
+    if (el) el.classList.add('active');
+  });
+});
+document.querySelectorAll('.btn-segment').forEach(seg => {
+  seg.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', function() {
+      seg.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+    });
+  });
+});
+document.getElementById('themeToggle').addEventListener('click', function() {
+  document.documentElement.classList.toggle('dark');
+  this.classList.toggle('dark');
+  this.querySelector('span').textContent = this.classList.contains('dark') ? '浅色' : '深色';
+});
+document.querySelectorAll('.task-checkbox, .subtask-checkbox').forEach(cb => {
+  cb.addEventListener('click', function(e) {
+    e.stopPropagation();
+    this.classList.toggle('done');
+    const t = this.closest('.task-item, .subtask-item')?.querySelector('.task-title, .subtask-title');
+    if (t) t.classList.toggle('done');
+  });
+});
+const hm = document.getElementById('heatmap');
+if (hm) {
+  for (let w = 0; w < 53; w++) {
+    const col = document.createElement('div');
+    col.style.cssText = 'display:flex;gap:1.5px;flex-direction:column';
+    for (let d = 0; d < 7; d++) {
+      const r = Math.random();
+      const lv = r < 0.3 ? 0 : r < 0.5 ? 1 : r < 0.7 ? 2 : r < 0.85 ? 3 : 4;
+      const cell = document.createElement('div');
+      cell.className = 'heatmap-cell l' + lv;
+      cell.style.cssText = 'width:7px;height:7px';
+      col.appendChild(cell);
+    }
+    hm.appendChild(col);
+  }
+}
+</script>
+</body>
+</html>
